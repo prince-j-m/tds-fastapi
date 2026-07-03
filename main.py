@@ -82,3 +82,64 @@ def verify(request: TokenRequest):
             status_code=401,
             content={"valid": False},
         )
+
+import os
+
+DEFAULTS = {
+    "port": 8000,
+    "workers": 1,
+    "debug": False,
+    "log_level": "info",
+    "api_key": "default-secret-000",
+}
+
+YAML_CONFIG = {
+    "workers": 2
+}
+
+DOTENV_CONFIG = {
+    "port": 8604,
+    "log_level": "error",
+    "api_key": "key-vv3kxadk5y",
+}
+
+def to_bool(value):
+    return str(value).lower() in ("true", "1", "yes", "on")
+
+@app.get("/effective-config")
+async def effective_config(set: list[str] = Query(default=[])):
+    config = DEFAULTS.copy()
+
+    config.update(YAML_CONFIG)
+    config.update(DOTENV_CONFIG)
+
+    # OS environment variables (APP_* prefix)
+    env_map = {
+        "APP_PORT": "port",
+        "APP_LOG_LEVEL": "log_level",
+        "APP_API_KEY": "api_key",
+        "APP_DEBUG": "debug",
+        "APP_WORKERS": "workers",
+        "NUM_WORKERS": "workers",
+    }
+
+    for env_key, cfg_key in env_map.items():
+        if env_key in os.environ:
+            config[cfg_key] = os.environ[env_key]
+
+    # CLI overrides
+    for item in set:
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        config[key] = value
+
+    config["port"] = int(config["port"])
+    config["workers"] = int(config["workers"])
+    config["debug"] = to_bool(config["debug"])
+    config["log_level"] = str(config["log_level"])
+
+    # Never expose the API key
+    config["api_key"] = "****"
+
+    return config
